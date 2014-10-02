@@ -13,7 +13,7 @@ int digits[4] = {
 };
 
 int numbers[] = {
-  136,237,195,161,228,176,144,233,128,160
+  136,237,131,161,228,176,144,233,128,160
 };
 
 int s = 0;
@@ -29,10 +29,22 @@ unsigned long currHour = 0;
 unsigned long lastHour = 0;
 
 unsigned long currMillis = 0;
+
+unsigned long currBlink = 0;
+
+unsigned long lastBlink = 0;
 void setup(){
   pinMode(latchPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
+  pinMode(31,OUTPUT);
+  pinMode(33,OUTPUT);
+  pinMode(35,OUTPUT);
+  pinMode(37,OUTPUT);  
+  pinMode(button1,INPUT_PULLUP);
+  pinMode(button2,INPUT_PULLUP);
+  pinMode(button3,INPUT_PULLUP);
+  pinMode(button4 ,INPUT_PULLUP);
   
   Serial.begin(9600);
 
@@ -40,11 +52,19 @@ void setup(){
 }
 
 void loop(){
-//  updateTime();
+
   updateTime();
-  printTime();
-  displayNumber(1234);
+//  printTime();
+  displayTime(h,m);
+  
+  Serial.print(digitalRead(button1));
+  Serial.print(digitalRead(button2));
+  Serial.print(digitalRead(button3));
+  Serial.println(digitalRead(button4));  
+  
+  
 }
+
 
 
 void printTime(){
@@ -85,52 +105,46 @@ void updateTime(){
 void setTime(int hour, int minute){
   h = hour;
  
-  m = minute;  
+  m = minute;       
 }
 
 void displayTime(int hour, int minute){
   
-}
-void displayNumber(int number){
-  int d1 = number / 1000;
-  int d2 = number % 1000 / 100;
-  int d3 = number % 100 / 10;
-  int d4 = number % 10;
+  int h1 = hour / 10;
+  int h2 = hour % 10;
   
-  Serial.print(d1);
-  Serial.print(d2);
-  Serial.print(d3);
-  Serial.print(d4); 
+  int m1 = minute / 10;
+  int m2 = minute % 10;
   
   for(int i = 0; i < 4; i++){
-
-    digitalWrite(digits[i],1);
     
     digitalWrite(latchPin,0);
     
     switch(i){
     
      case 0:
-       shiftOut(dataPin, clockPin, LSBFIRST, numbers[d1]);
+       shiftOut(dataPin, clockPin, LSBFIRST, numbers[h1]);
      break;
      case 1:
-       shiftOut(dataPin, clockPin, LSBFIRST, numbers[d2]);
+       shiftOut(dataPin, clockPin, LSBFIRST, numbers[h2]);
      break;
      case 2:
-       shiftOut(dataPin, clockPin, LSBFIRST, numbers[d3]);     
+       shiftOut(dataPin, clockPin, LSBFIRST, numbers[m1]);     
      break;
      case 3:
-       shiftOut(dataPin, clockPin, LSBFIRST, numbers[d4]);    
+       shiftOut(dataPin, clockPin, LSBFIRST, numbers[m2]);    
      break;     
      
      
     }
    
      digitalWrite(latchPin,1); 
+
+     digitalWrite(digits[i],1);
            
-     delay(500);
-     
      digitalWrite(digits[i],0);
-  }
+       
+    }
   
 }
+
