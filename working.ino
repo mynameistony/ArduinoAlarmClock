@@ -20,6 +20,11 @@ unsigned long colors[10] = {
   rr,ro,ry,ry,rg,rg,rb,rb,rp,rp
 };
 
+unsigned long colorFadeStrip[10] = {
+  rr,rr,rr,rr,rr,rr,rr,rr,rr,rr
+};
+
+int colorFadeMode = 0;
 
 int currLength = 10;
 
@@ -33,6 +38,9 @@ unsigned long currColor = 0x010101;
 
 String input = "NO-INPUT";
 
+int hourUntil = 0;
+
+int minUntil = 0;
 
 int minute = 0;
 
@@ -47,7 +55,14 @@ boolean alarmAM = true;
 
 unsigned long lastPrint = 0;
 
+unsigned long lastFade = 0;
+
+int fadeInterval = 50;
+
 boolean isOn = true;
+
+boolean colorFade = false;
+
 void setup(){
   Serial.begin(9600);
   ser.begin(9600);
@@ -70,16 +85,24 @@ void loop(){
     input = ser.readStringUntil('\n');  
 
     Serial.println(input[0]);
-
+    
     switch(input[0]){
       
+    case 'f':
+      if(colorFade)
+        colorFade = false;
+      else
+        colorFade = true;
+    break;
+      
+  
     case 'm':
       currLength += 1;
       
       if(currLength > 10)
         currLength = 10;
         
-      updateStrip();
+      updateStrip(colors, currColor, currBrightness, currLength);
     break;
     
     case 'l':
@@ -88,7 +111,7 @@ void loop(){
       if(currLength < 0)
         currLength = 0;
         
-      updateStrip();
+            updateStrip(colors, currColor, currBrightness, currLength);
     break;
     
     case 'u':
@@ -97,7 +120,7 @@ void loop(){
       if(currBrightness > 255)
         currBrightness = 255;
       
-      updateStrip();
+      updateStrip(colors, currColor, currBrightness, currLength);
     break;
     case 'd':
       currBrightness -= 10;
@@ -105,48 +128,48 @@ void loop(){
       if(currBrightness < 0)
         currBrightness = 0;
       
-      updateStrip();    
+      updateStrip(colors, currColor, currBrightness, currLength);    
     break;    
       
     case 'R':
 	currColor = 0x010000;       
-	updateStrip();
+	updateStrip(colors, currColor, currBrightness, currLength);
     
     break;
     
     case 'B':
 			currColor = 0x000100;      
-			updateStrip();
+			updateStrip(colors, currColor, currBrightness, currLength);
     break;
     
     case 'G':
 			currColor = 0x000001;
-			updateStrip();
+			updateStrip(colors, currColor, currBrightness, currLength);
     break;
 
     case 'C':
 			currColor = 0x000101;
-			updateStrip();
+			updateStrip(colors, currColor, currBrightness, currLength);
     break;
 
     case 'M':
 			currColor = 0x010100;    
-			updateStrip();
+			updateStrip(colors, currColor, currBrightness, currLength);
     break;   
    
     case 'Y':
 			currColor = 0x010001;
-			updateStrip();
+			updateStrip(colors, currColor, currBrightness, currLength);
     break;    
 
     case 'W':
 			currColor = 0x010101;
-			updateStrip();
+			updateStrip(colors, currColor, currBrightness, currLength);
     break;
     
     case 'O':
 			currColor = 0x000000;
-			updateStrip();
+			updateStrip(colors, currColor, currBrightness, currLength);
     break; 
     
     case 't':
@@ -191,9 +214,6 @@ void loop(){
         for(int i = 1; i <= 4; i++)
           input[i] -= 48;
 
-        alarmHour = input[1] * 10 + input[2];
-        alarmMin = input[3] * 10 + input[4];
-
         switch(input[5]){
           case 'a':
             alarmAM = true;
@@ -221,13 +241,30 @@ void loop(){
     }
 
     printInfo();
-  }  
+  }
+
+  if(colorFade){
+    if(millis() - lastFade > fadeInterval){
+      lastFade = millis();  
+      for(int i = 0; i < 10; i ++)
+        colorFadeStrip[i] = newColorFade(colorFadeStrip[i]);  
+      mySend(colorFadeStrip);   
+    }
+  }
+  
+  if(isOn)
+    if(millis() - lastPrint > 5000)
+      lightOff();
 
 }
 
 void printInfo(){
-//  lastPrint = millis();
+  lastPrint = millis();
+  
+  lightOn();
+  
   clearScreen();  
+  
   
   setPos(0,0);
 
@@ -235,7 +272,7 @@ void printInfo(){
 
   ser.print(':');
 
-  if(minute < 9)
+  if(minute < 10)
     ser.print('0');
     
   ser.print(minute);
@@ -251,7 +288,7 @@ void printInfo(){
 
   ser.print(':');
 
-  if(alarmMin < 9)
+  if(alarmMin < 10)
     ser.print('0');
 
   ser.print(alarmMin);
@@ -260,7 +297,15 @@ void printInfo(){
     ser.print("am");
   else
     ser.print("pm");
-
+  
+  setPos(1,0);
+  
+//  ser.print(hourUntil);
+//  ser.print(':');
+//  if(minUntil < 10);
+//    ser.print('0');
+//  ser.print(minUntil);
+//  ser.print(" left");
 }
 
 void setPos(unsigned int r,unsigned int c){
@@ -290,7 +335,7 @@ void updateTime(){
     }
     
   }
-  
+    
   if(alarmHour == hour)
     if(alarmMin == minute)
       if(alarmAM ==isAM)
@@ -308,7 +353,6 @@ void doAlarm(){
 }
 
 void lightOn(){
-  
   ser.write(17);
   isOn = true;
 }
@@ -411,19 +455,76 @@ void mySend(unsigned long data[10]){
 
 }
 
-void updateStrip(){
+void updateStrip(unsigned long thisStrip[10], unsigned long newColor, int newBrightness, int newLength){
 
 	// Loop through strip segments
 	for(int i = 0; i < 10; i++)
 		// Limit to current length
-		if(i < currLength)
+		if(i < newLength)
 			// Set segment according to current settings
-			colors[i] = currColor * currBrightness;
+			thisStrip[i] = newColor * newBrightness;
 		else
 			// Set others off
-			colors[i] = 0x000000;
+			thisStrip[i] = 0x000000;
 
 	// Refresh Strip
-	mySend(colors);
+	mySend(thisStrip);
 }
 
+unsigned long newColorFade(unsigned long data){
+
+	// Break down value into Red, Green and Blue values
+	int r =  data / 0x010000;
+	int b = (data / 0x000100) % 0x000100 ;
+	int g = data % 0x000100;  
+	  
+	//  Serial.print("Data: ");
+	//  Serial.print(data, HEX);
+	//  Serial.print("\nR: ");
+	//  Serial.print(r, HEX);
+	//  Serial.print("\tB: ");
+	//  Serial.print(b, HEX);
+	//  Serial.print("\tG: ");
+	//  Serial.print(g, HEX);
+	//  Serial.print("\tMode: ");
+	//  Serial.println(colorFadeMode);
+	
+	switch(colorFadeMode){
+	
+	// Red -> Blue  
+	case 0:
+		if(r > 0){
+			data -= 0x010000;
+			data += 0x000100;
+		}
+		else
+			colorFadeMode = 1;
+	break;
+
+	// Blue -> Green
+	case 1:
+		if(b > 0){
+			data -= 0x000100;
+			data += 0x000001; 
+		}
+		else
+			colorFadeMode = 2;
+	break;
+
+	// Green -> Red
+	case 2:
+		if(g > 0){
+			data += 0x010000;
+			data -= 0x000001; 
+		}
+		else
+			colorFadeMode = 0;        
+	break;
+
+	default:
+		Serial.print("\nShits fucked\n");     
+	break;
+	}    
+
+	return data;
+}
