@@ -3,7 +3,7 @@
 
 #define DATA_1 (PORTC |=  0X01)    // DATA 1    // for UNO
 #define DATA_0 (PORTC &=  0XFE)    // DATA 0    // for UNO
-#define STRIP_PINOUT (DDRC=0xFF)    // for UNO
+  #define STRIP_PINOUT (DDRC=0xFF)    // for UNO
 
 #define rr  0xff0000
 #define ro  0x6f002f 
@@ -23,6 +23,14 @@ unsigned long colors[10] = {
 unsigned long colorFadeStrip[10] = {
   rr,rr,rr,rr,rr,rr,rr,rr,rr,rr
 };
+
+int mode = 0;
+
+int pulseInterval = 50;
+
+boolean pulseIncreasing = 0;
+
+int pulseBrightness = 0;
 
 int colorFadeMode = 0;
 
@@ -48,14 +56,21 @@ int hour = 12;
 
 boolean isAM = true;
 
+int alarmInterval = 5000;
 int alarmHour = 7;
 int alarmMin = 0;
 
 boolean alarmAM = true;
 
+boolean alarmTriggered = false;
+
 unsigned long lastPrint = 0;
 
 unsigned long lastFade = 0;
+
+unsigned long lastPulse = 0;
+
+unsigned long lastAlarm = 0;
 
 int fadeInterval = 50;
 
@@ -63,11 +78,14 @@ boolean isOn = true;
 
 boolean colorFade = false;
 
+boolean pulseMode = false;
+
 void setup(){
   Serial.begin(9600);
   ser.begin(9600);
 
   lightOn();
+  ser.write(22);
   printInfo();
   
   STRIP_PINOUT;
@@ -83,16 +101,34 @@ void loop(){
 
   if(ser.available() > 0){
     input = ser.readStringUntil('\n');  
-
+    
+    if(input == "1234")
+      alarmTriggered = false;
+      
     Serial.println(input[0]);
     
     switch(input[0]){
       
-    case 'f':
-      if(colorFade)
-        colorFade = false;
+    case 'j':
+      mode = 3;
+      setStrip(minute);
+    break;
+      
+    case 'p':
+      pulseInterval = 50;
+      if(mode == 1)
+        mode = 0;
       else
-        colorFade = true;
+        mode = 1;
+    break;
+      
+    case 'f':
+      fadeInterval = 50;
+      
+      if(mode == 2)
+        mode = 0;
+      else
+        mode = 2;
     break;
       
   
@@ -102,7 +138,8 @@ void loop(){
       if(currLength > 10)
         currLength = 10;
         
-      updateStrip(colors, currColor, currBrightness, currLength);
+      if(mode != 2)
+        updateStrip(colors, currColor, currBrightness, currLength);
     break;
     
     case 'l':
@@ -110,66 +147,119 @@ void loop(){
       
       if(currLength < 0)
         currLength = 0;
-        
-            updateStrip(colors, currColor, currBrightness, currLength);
+      
+      if(mode != 2)  
+        updateStrip(colors, currColor, currBrightness, currLength);
     break;
     
     case 'u':
-      currBrightness += 10;
+    
+      switch(mode){
+        case 0:
+          currBrightness += 10;
       
-      if(currBrightness > 255)
-        currBrightness = 255;
+          if(currBrightness > 255)
+            currBrightness = 255;
       
-      updateStrip(colors, currColor, currBrightness, currLength);
+          updateStrip(colors, currColor, currBrightness, currLength);
+        break; 
+        
+        case 1: 
+          pulseInterval -= 5;
+          if(pulseInterval < 0)
+            pulseInterval = 0;
+        break;
+        
+        case 2:
+          fadeInterval -= 5;
+          if(fadeInterval < 0)
+            fadeInterval = 0;
+        break;
+        
+        case 3:
+          pulseInterval -= 5;
+          if(pulseInterval < 0)
+            pulseInterval = 0;
+          
+        break;
+      }
     break;
     case 'd':
-      currBrightness -= 10;
+    
+      switch(mode){
+        case 0:
+          currBrightness -= 10;
       
-      if(currBrightness < 0)
-        currBrightness = 0;
+          if(currBrightness < 0)
+            currBrightness = 0;
       
-      updateStrip(colors, currColor, currBrightness, currLength);    
+          updateStrip(colors, currColor, currBrightness, currLength);    
+        break;
+      
+        case 1:
+          pulseInterval += 5;
+          if(pulseInterval > 100)
+            pulseInterval = 100;
+         
+        break;
+       
+        case 2:
+          fadeInterval += 5;
+          if(fadeInterval > 100)
+            fadeInterval = 100;
+       
+        break; 
+      }
+       
     break;    
       
     case 'R':
+        mode = 0;
 	currColor = 0x010000;       
 	updateStrip(colors, currColor, currBrightness, currLength);
     
     break;
     
     case 'B':
-			currColor = 0x000100;      
-			updateStrip(colors, currColor, currBrightness, currLength);
+      mode = 0;
+      currColor = 0x000100;      
+      updateStrip(colors, currColor, currBrightness, currLength);
     break;
     
     case 'G':
-			currColor = 0x000001;
-			updateStrip(colors, currColor, currBrightness, currLength);
+      mode = 0;
+      currColor = 0x000001;
+      updateStrip(colors, currColor, currBrightness, currLength);
     break;
 
     case 'C':
-			currColor = 0x000101;
-			updateStrip(colors, currColor, currBrightness, currLength);
+      mode = 0;
+      currColor = 0x000101;
+      updateStrip(colors, currColor, currBrightness, currLength);
     break;
 
     case 'M':
-			currColor = 0x010100;    
-			updateStrip(colors, currColor, currBrightness, currLength);
+      mode = 0;
+      currColor = 0x010100;    
+      updateStrip(colors, currColor, currBrightness, currLength);
     break;   
    
     case 'Y':
-			currColor = 0x010001;
-			updateStrip(colors, currColor, currBrightness, currLength);
+      mode = 0;
+      currColor = 0x010001;
+      updateStrip(colors, currColor, currBrightness, currLength);
     break;    
 
     case 'W':
-			currColor = 0x010101;
-			updateStrip(colors, currColor, currBrightness, currLength);
+      mode = 0;
+      currColor = 0x010101;
+      updateStrip(colors, currColor, currBrightness, currLength);
     break;
     
     case 'O':
-			currColor = 0x000000;
-			updateStrip(colors, currColor, currBrightness, currLength);
+      mode = 0;
+      currColor = 0x000000;
+      updateStrip(colors, currColor, currBrightness, currLength);
     break; 
     
     case 't':
@@ -213,6 +303,8 @@ void loop(){
         Serial.println("Setting alarm...");
         for(int i = 1; i <= 4; i++)
           input[i] -= 48;
+        alarmHour = input[1] * 10 + input[2];
+        alarmMin = input[3] * 10 + input[4];
 
         switch(input[5]){
           case 'a':
@@ -243,14 +335,61 @@ void loop(){
     printInfo();
   }
 
-  if(colorFade){
-    if(millis() - lastFade > fadeInterval){
-      lastFade = millis();  
-      for(int i = 0; i < 10; i ++)
-        colorFadeStrip[i] = newColorFade(colorFadeStrip[i]);  
-      mySend(colorFadeStrip);   
-    }
+
+  
+  switch(mode){
+    case 0:
+    break;
+    
+    case 1:
+    if(millis() - lastPulse > pulseInterval){
+      lastPulse = millis();
+      
+      for(int i = 0; i < 10; i++)
+        if(i < currLength)
+          colors[i] = pulseColor(currColor);
+        else
+          colors[i] = 0;
+      
+      mySend(colors);
+       
+      
+    }      
+    break;
+    
+    case 2:
+      if(millis() - lastFade > fadeInterval){
+        lastFade = millis();  
+        for(int i = 0; i < 10; i ++)
+            colorFadeStrip[i] = newColorFade(colorFadeStrip[i]);                
+        mySend(colorFadeStrip);   
+      }
+    break;
+    
+    case 3:
+    if(millis() - lastPulse > pulseInterval){
+      lastPulse = millis();
+      setStrip(minute);      
+      for(int i = 0; i < 10; i++)
+        if(i < currLength)
+          colors[i] = pulseColor(currColor);
+        else
+          colors[i] = 0;
+          
+          
+      
+      mySend(colors);
+       
+      
+    }      
+    break;
+   
+ 
+  
   }
+  
+  if(alarmTriggered)
+    doAlarm();
   
   if(isOn)
     if(millis() - lastPrint > 5000)
@@ -300,6 +439,31 @@ void printInfo(){
   
   setPos(1,0);
   
+  switch(mode){
+    case 0:
+      ser.print("B: ");
+      ser.print(currBrightness);
+      ser.print(" L: ");
+      ser.print(currLength);
+    break;
+    
+    case 1:
+      ser.print("Pulse Rate: ");
+      ser.print(100 - pulseInterval);
+    break;
+    
+    case 2:
+      ser.print("Fade Rate: ");
+      ser.print(100 - fadeInterval);
+    break; 
+    
+    case 3:
+      ser.print("T-Pulse Rate: ");
+      ser.print(100 - pulseInterval);
+    break;
+    
+  }
+  
 //  ser.print(hourUntil);
 //  ser.print(':');
 //  if(minUntil < 10);
@@ -335,21 +499,45 @@ void updateTime(){
     }
     
   }
+  
+  if(hour == 4){
+    if(minute > 19 && minute < 30){
+      pulseInterval = 100 - (10 * (minute % 10));
+      currColor = 0x000001;
+      mode = 1; 
+    }
+    
+    if(minute == 30){
+      pulseInterval = 50;
+      currColor = 0x000000;
+      mode = 0;
+    
+      updateStrip(colors,0,0,0);
+    }
+    
+  }
+  
+  if(mode == 3)
+    setStrip(minute);          
+      
     
   if(alarmHour == hour)
     if(alarmMin == minute)
       if(alarmAM ==isAM)
-        doAlarm();  
-
+        alarmTriggered = true;
 }
 
 void doAlarm(){
   
-  ser.write(211);
-  ser.write(220);  
-  ser.write(220);  
-  ser.write(220);  
-  ser.write(220);  
+  if(millis() - lastAlarm > 5000){
+    lastAlarm = millis();
+    
+    ser.write(211);
+    ser.write(220);  
+    ser.write(220);  
+    ser.write(220);  
+    ser.write(220);  
+  }
 }
 
 void lightOn(){
@@ -366,6 +554,44 @@ void clearScreen(){
   ser.write(12);  
 }
 
+void setStrip(int thisMinute){
+    switch(thisMinute / 10){
+      
+     case 0:
+       currColor = 0x010000;
+     break;   
+
+     case 1:
+       currColor = 0x000100;
+     break;   
+
+     case 2:
+       currColor = 0x000001;
+     break;   
+
+     case 3:
+       currColor = 0x010100;
+     break;   
+
+     case 4:
+       currColor = 0x010001;
+     break;   
+
+     case 5:
+       currColor = 0x000101;
+     break;        
+    }
+    
+    currLength = thisMinute % 10;
+    
+    if(currLength == 0)
+      currLength = 10;
+    
+    
+//    updateStrip(colors,currColor,125,currLength + 1);
+  
+  
+}
 
 void send_strip(uint32_t data){
 	int i;
@@ -527,4 +753,25 @@ unsigned long newColorFade(unsigned long data){
 	}    
 
 	return data;
+}
+
+unsigned long pulseColor(unsigned long thisColor){
+  
+  if(pulseIncreasing){
+    pulseBrightness++;
+    
+    if(pulseBrightness > 254)
+      pulseIncreasing = false;
+  }
+  
+  else{
+    pulseBrightness--;
+    
+    if(pulseBrightness < 1)
+      pulseIncreasing = true;    
+  }
+    
+  thisColor *= pulseBrightness;
+  
+  return thisColor;
 }
